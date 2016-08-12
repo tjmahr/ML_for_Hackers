@@ -99,41 +99,55 @@ ufo$DateReported <- as.Date(ufo$DateReported, format = "%Y%m%d")
 # at the cpmma "Iowa City, IA" becomes c("Iowa City", " IA"). Entries with too
 # many commas or with no known US state in the second position are set to NA.
 
-get_location <- function(location) {
-  # Break strings at commas. Trim whitespace.
-  cleaned <- location %>%
-    str_split(",") %>%
-    lapply(str_trim) %>%
-    unlist
+get_us_location <- function(location) {
+  # Break strings at commas.
+  pieces <- location %>% str_split(",") %>% unlist
 
-  if (length(cleaned) != 2) {
-    cleaned <- c(NA, NA)
+  if (length(pieces) != 2) {
+    pieces <- c(NA_character_, NA_character_)
+  }
+
+  # Trim whitespace.
+  cleaned <- str_trim(pieces)
+
+  if (!is_us_state(cleaned[2])) {
+    cleaned <- c(NA_character_, NA_character_)
   }
 
   data_frame(USCity = cleaned[1], USState = cleaned[2])
 }
 
+# Is a string a US state abbreviation?
+is_us_state <- function(x) {
+  x %in% datasets::state.abb
+}
+
 # We use 'lapply' to return a list with [City, State] vector as each element
-city_state <- lapply(ufo$Location, get_location)
+city_state <- lapply(ufo$Location, get_us_location)
 city_state <- bind_rows(city_state)
 
-# Add the city and state data to ufo data frame. We can do this using the 'transform'
-# function.
+city_state %>% sample_n(100)
+
+# The code will miss examples like:
+#
+# - Mt. Pleasant/Texarkana (Between,  on I30), TX
+# - Perry (rural highway, S.R.22), OH
+# - Malibu, West, CA
+# - Washington, D.C., DC
+# - Las Vegas, Nevada, Airspace, NV
+#
+# We might do a little better by splitting into two at the last comma in a
+# string
+
+# Add the city and state data to ufo data-frame.
 ufo <- bind_cols(ufo, city_state)
 
+# Finally, we'll use 'filter' to examine only events in the United States.
+ufo_us <- ufo %>% filter(!is.na(USState))
 
-# Next step, we will strip out non-US incidents
-
-# Insert NA's where there are non-US cities
-ufo$USState <- state.abb[match(ufo$USState, state.abb)]
-
-# Finally, we'll use 'subset' to examine only events in the United States and convert
-# states to factors, i.e., a categorical variable.
-ufo_us <- filter(ufo, !is.na(USState))
-
-# Now, we are ready to do some analysis!  First, take a look at the post-processed data
-summary(ufo_us)
-head(ufo_us)
+# Now, we are ready to do some analysis! First, take a look at the
+# post-processed data
+ufo_us
 
 # The summary functions shows us that the data actually go back a very long time (1440!).  So,
 # we will want to take a quick look at the date to see where the majority of the data exists.
