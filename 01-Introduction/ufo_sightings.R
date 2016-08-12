@@ -1,89 +1,107 @@
+# original header:
+
 # File-Name:       ufo_sightings.R
 # Date:            2012-02-10
 # Author:          Drew Conway (drew.conway@nyu.edu)
 # Purpose:         Code for Chapter 1.  In this case we will review some of the basic
-#                   R functions and coding paradigms we will use throughout this book.
-#                   This includes loading, viewing, and cleaning raw data; as well as
-#                   some basic visualization.  This specific case we will use data from
-#                   reported UFO sightings to investigate what, if any, seasonal trends
-#                   exists in the data.
+#                  R functions and coding paradigms we will use throughout this book.
+#                  This includes loading, viewing, and cleaning raw data; as well as
+#                  some basic visualization.  This specific case we will use data from
+#                  reported UFO sightings to investigate what, if any, seasonal trends
+#                  exists in the data.
 # Data Used:       http://www.infochimps.com/datasets/60000-documented-ufo-sightings-with-text-descriptions-and-metada
-# Packages Used:   ggplot2, plyr, scales
 
 # All source code is copyright (c) 2012, under the Simplified BSD License.
 # For more information on FreeBSD see: http://www.opensource.org/licenses/bsd-license.php
 
-# All images and materials produced by this code are licensed under the Creative Commons
-# Attribution-Share Alike 3.0 United States License: http://creativecommons.org/licenses/by-sa/3.0/us/
+# All images and materials produced by this code are licensed under the Creative
+# Commons Attribution-Share Alike 3.0 United States License:
+# http://creativecommons.org/licenses/by-sa/3.0/us/
 
 # All rights reserved.
 
-# NOTE: If you are running this in the R console you must use the 'setwd' command to set the
-# working directory for the console to whereever you have saved this file prior to running.
-# Otherwise you will see errors when loading data or saving figures!
+# /original header
+
+
+
+
+# "[To demonstrate basic R techniques,] we will address a question with pure
+# entertainment value. Recently, the data service Infochimps.com released a data
+# set with over 60,000 documented reports of unidentified flying object (UFO)
+# sightings. The data spans hundreds of years and has reports from all over the
+# world. Though it is international, the majority of sightings in the data come
+# from the United States. With the time and spatial dimensions of the data, we
+# might ask the following questions: are there seasonal trends in UFO sightings;
+# and what, if any, variation is there among UFO sightings across the different
+# states in the US?" (p. 12)
+
 
 # Load libraries and data
 library(ggplot2)    # We'll use ggplot2 for all of our visualizations
-# library(plyr)       # For data manipulation
 library(scales)     # We'll need to fix date formats in plots
-library(dplyr)
+library(dplyr)      # For data manipulation
+library(stringr)    # For string manipulation
 
-# This is a tab-delimited file, so we use 'read.delim' and set the separator as a tab character.
-# We also have to alter two defaults; first, we want the strings to not be converted to
-# factor types; and, this data has does not have header labels in the first row, so
-# we want to keep the first row as data.
-
-# ufo <- read.delim(file.path("./01-Introduction/data", "ufo", "ufo_awesome.tsv"),
-#                   sep = "\t",
-#                   stringsAsFactors = FALSE,
-#                   header = FALSE,
-#                   na.strings = "")
-
-# From the data's description file, we will set the column names accordingly using
-# as we read in the data
+# The data file we are going to load doesn't have the column names in the first
+# row. These are the field names from the data's description file. We will set
+# the column names accordingly as we read in the data.
 ufo_col_names <- c("DateOccurred", "DateReported", "Location",
                    "ShortDescription", "Duration", "LongDescription")
 
-# This is a large text file (75MB), so this may take a moment
+# We use the readr package because it is fast, never sets strings to factors,
+# prints out messages about inconsistent rows or columns, and returns the data
+# as a "tibble" dataframe (which has a better print method).
 ufo <- readr::read_tsv(
-  "./01-Introduction/data/ufo/ufo_awesome.tsv",
+  file = "./01-Introduction/data/ufo/ufo_awesome.tsv",
   col_types = "cccccc",
   col_names = ufo_col_names)
 
-readr::problems(ufo)
+# (Some of the LongDescription values contained tabs which is why readr warned
+# about unexpected columns.)
+
+# readr::read_tsv tries to guess column types as it reads in the data. The
+# DateOccurred and DateReported fields store dates in YYYYMMDD format (e.g.,
+# 19951009). readr will convert these to integers because they look like
+# numbers. By using col_types = "cccccc", we explicitly tell readr to treat all
+# 6 columns as [c]haracter vectors
 
 # Inspect the data frame
-summary(ufo)
-head(ufo)
+ufo
 
 # To work with the dates, we will need to convert the YYYYMMDD string to an R Date
 # type using the 'strptime' function
 
-# But, something has gone wrong with the data. For now, we'll just ignore the errata
-# by removing those entries that have not parsed correctly.  We know that the date
-# strings are always 8 characters long, and any deviation from this would indicate
-# a row to ignore.  We will use the 'ifelse' function to construct a vector of
-# Booleans indicating the problem rows
-bad_date_occur <- nchar(ufo$DateOccurred) != 8
-bad_data_report <- nchar(ufo$DateReported) != 8
-good_rows <- !bad_date_length
-length(which(!good_rows))      # While 731 rows may seem like a lot, out of over 60K
-ufo <- ufo[good_rows, ]        # it is only about 0.6% of the total number of records.
+# But, something has gone wrong with the data. For now, we'll just ignore the
+# errata by removing those entries that have not parsed correctly.  We know that
+# the date strings are always 8 characters long, and any deviation from this
+# would indicate a row to ignore.
+
+# Peek at the rows with bad dates
+ufo %>% filter(nchar(DateOccurred) != 8)
+ufo %>% filter(nchar(DateReported) != 8)
+
+# The book says 371 rows have badly formatted dates. These filters say 254 rows
+# do.
+
+# Exclude them
+ufo <- ufo %>%
+  filter(nchar(DateOccurred) == 8, nchar(ufo$DateReported) == 8)
 
 # Now we can convert the strings to Date objects and work with them properly
 ufo$DateOccurred <- as.Date(ufo$DateOccurred, format = "%Y%m%d")
 ufo$DateReported <- as.Date(ufo$DateReported, format = "%Y%m%d")
 
-# It will be useful to create separate columns for both town and state from the Location
-# column.  To do so we will use the 'strsplit' function to perform the regex.
-# Note: not every entry in Location is of the form 'City, State'.  We use the
-# 'tryCatch' function to simply return [NA, NA] when this is the case.  Next,
-# we remove the leading white-space from both the city and state strings with 'gsub'
+# It will be useful to create separate columns for both town and state from the
+# Location column.
 
-library("stringr")
-get_location <- function(l) {
+# We write a function to take location string and return a data-frame with a
+# USCity column and a USState column. We do this by breaking a location string
+# at the cpmma "Iowa City, IA" becomes c("Iowa City", " IA"). Entries with too
+# many commas or with no known US state in the second position are set to NA.
+
+get_location <- function(location) {
   # Break strings at commas. Trim whitespace.
-  cleaned <- l %>%
+  cleaned <- location %>%
     str_split(",") %>%
     lapply(str_trim) %>%
     unlist
