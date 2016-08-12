@@ -260,27 +260,70 @@ ggsave(
   height = 8.5)
 
 
-# Create a new graph where the number of signtings is normalized by the state population
-state_pop <- readr::read_csv(file.path('./01-Introduction/data/census.csv'))
+# Create a new graph where the number of signtings is normalized by the state
+# population.
+state_pop <- readr::read_csv(file.path('./01-Introduction/data/census.csv')) %>%
+  select(Pop2000 = `2000`, StateName = State)
 
-state_pop$abbs <- sapply(state_pop$State, function(x) state.abb[grep(paste('^', x, sep=''), state.name)])
-all_sightings$Sightings.Norm <- sapply(1:nrow(all_sightings),
-    function(i) all_sightings$Sightings[i] / state_pop$`2000`[which(state_pop$abbs== all_sightings$State[i])])
+states <- data_frame(StateName = state.name, State = state.abb)
 
+state_pop <- left_join(state_pop, states) %>% select(State, Pop2000)
 
-state_plot_norm <- ggplot(all_sightings, aes(x = YearMonth,y = Sightings.Norm)) +
-  geom_line(aes(color = "darkblue")) +
-  facet_wrap(~State, nrow = 10, ncol = 5) +
+all_sightings <- all_sightings %>%
+  left_join(state_pop) %>%
+  mutate(Sightings_Norm = Sightings / Pop2000) %>%
+  select(-Pop2000)
+
+state_plot_norm <- ggplot(all_sightings) +
+  aes(x = YearMonth, y = Sightings_Norm) +
+  geom_line(color = "darkblue") +
+  facet_wrap(~ State, nrow = 10, ncol = 5) +
   theme_bw() +
-  scale_color_manual(values = c("darkblue" = "darkblue"), guide = "none") +
-  scale_x_date(date_breaks = "5 years", labels = date_format('%Y')) +
+  scale_x_date(date_breaks = "5 years", date_labels = '%Y') +
   xlab("Years") +
   ylab("Per Capita Number of Sightings (2000 Census)") +
   ggtitle("Number of UFO sightings by Month-Year and U.S. State (1990-2010)")
 
-
 # Save the plot as a PDF
-ggsave(plot = state_plot_norm,
-     filename = file.path("./01-Introduction/images", "ufo_sightings_norm.pdf"),
-     width = 14,
-     height = 8.5)
+ggsave(
+  plot = state_plot_norm,
+  filename = "ufo_sightings_norm.pdf",
+  path = "./01-Introduction/images",
+  width = 14,
+  height = 8.5)
+
+
+
+# Bonus. Create a map of sightings.
+library("maps")
+library("mapproj")
+
+by_state <- all_sightings %>%
+  group_by(State) %>%
+  summarise(Sightings = sum(Sightings), Sightings_Norm = sum(Sightings_Norm)) %>%
+  left_join(states) %>%
+  mutate(region = tolower(StateName))
+
+map_states <- map_data("state") %>%
+  left_join(by_state)
+
+ufo_map <- ggplot(map_states) +
+  aes(long, lat, group = group) +
+  geom_polygon(aes(fill = Sightings_Norm), colour = "black") +
+  coord_map() +
+  viridis::scale_fill_viridis(labels = scales::comma) +
+  scale_x_continuous(breaks = NULL) +
+  scale_y_continuous(breaks = NULL) +
+  labs(x = NULL, y = NULL, fill = "") +
+  theme_bw() +
+  theme(legend.position = c(.00, .00), legend.justification	= c(0, 0),
+        legend.background = element_rect(fill = NA)) +
+  ggtitle("UFO sightings by U.S. State (1990-2010)",
+          subtitle = "Per Capita Number of Sightings (Based on 2000 Census)")
+
+ggsave(
+  file = "ufo_map.pdf",
+  plot = ufo_map,
+  width = 10,
+  height = 7,
+  path = "./01-Introduction/images/")
