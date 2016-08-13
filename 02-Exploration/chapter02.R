@@ -24,7 +24,7 @@
 # confirmatory data analysis as a sort of mental hygiene routine that we use to
 # clean off our beliefs about the world after we’ve gone slogging through the
 # messy—and sometimes lawless—world of exploratory data visualization."
-# (p.29)
+# (p. 29)
 
 # "Confirmatory data analysis usually employs two tools:
 #
@@ -32,15 +32,25 @@
 #   data set that you didn’t use to find the pattern.
 # * Using probability theory to test whether the patterns you’ve found in your
 #   original data set could reasonably have been produced by chance."
-# (p.30)
+# (p. 30)
+
+# "It’s complicated to define the mode of an arbitrary vector because you need
+# the numbers in the vector to repeat if you’re going to define the mode
+# numerically. When the numbers in a vector could be arbitrary floating-point
+# values, it’s unlikely that any single numeric value would ever be repeated in
+# the vector. For that reason, modes are only really defined visually for many
+# kinds of data sets."
+# (p. 40)
 
 
+# "Beyond showing you the tools for visualizing your data, we’ll also describe
+# some of the canonical shapes you can expect to see when you start looking at
+# data. These idealized shapes, also called distributions, are standard patterns
+# that statisticians have studied over the years. When you find one of these
+# shapes in your data, you can often make broad inferences about your data: how
+# it originated, what sort of abstract properties it will have, and so on." (p.
+# 44).
 
-
-
-#
-# Snippet 1
-#
 
 # Load in the data set from disk.
 data_file <- file.path(".", "02-Exploration", "data",
@@ -55,13 +65,9 @@ summary(heights)
 # Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
 #54.26   63.51   66.32   66.37   69.17   79.00
 
-#
-# Snippet 2
-#
-
 # Define our own mean and median functions.
 my_mean <- function(x) {
-  return(sum(x) / length(x))
+  sum(x) / length(x)
 }
 
 my_median <- function(x) {
@@ -76,10 +82,6 @@ my_median <- function(x) {
   }
   median
 }
-
-#
-# Snippet 3
-#
 
 # Compare means and medians on toy examples.
 my_vector <- c(0, 100)
@@ -101,10 +103,6 @@ mean(my_vector)
 median(my_vector)
 #[1] 0
 
-#
-# Snippet 4
-#
-
 # Confirm that our mean and median functions produce the correct answer.
 my_mean(heights)
 #[1] 66.36756
@@ -118,24 +116,12 @@ mean(heights) - my_mean(heights)
 median(heights) - my_median(heights)
 #[1] 0
 
-#
-# Snippet 5
-#
-
 # Experiment with functions for assessing the range of a data set.
 min(heights)
 #[1] 54.26313
 
-#
-# Snippet 6
-#
-
 max(heights)
 #[1] 78.99874
-
-#
-# Snippet 7
-#
 
 c(min(heights), max(heights))
 #[1] 54.26313 78.99874
@@ -143,33 +129,26 @@ c(min(heights), max(heights))
 range(heights)
 #[1] 54.26313 78.99874
 
-#
-# Snippet 8
-#
+# "Another way of thinking of these numbers is to think of the `min` as the
+# number that 0% of your data is below and the `max` as the number that 100% of
+# your data is below. Thinking that way leads to a natural extension: how can
+# you find the number that N% of your data is below? The answer to that question
+# is to use the `quantile` function in R. The Nth quantile is exactly the number
+# that N% of your data is below."
+# (p. 40)
 
 # Try out the quantile function for computing arbitrary quantiles.
 quantile(heights)
 #      0%      25%      50%      75%     100%
 #54.26313 63.50562 66.31807 69.17426 78.99874
 
-#
-# Snippet 9
-#
 
 quantile(heights, probs = seq(0, 1, by = 0.20))
 #      0%      20%      40%      60%      80%     100%
 #54.26313 62.85901 65.19422 67.43537 69.81162 78.99874
 
-#
-# Snippet 10
-#
-
 seq(0, 1, by = 0.20)
 #[1] 0.0 0.2 0.4 0.6 0.8 1.0
-
-#
-# Snippet 11
-#
 
 # Define a variance function to assess the spread of data.
 my_var <- function(x) {
@@ -177,16 +156,8 @@ my_var <- function(x) {
   sum((x - m) ^ 2) / length(x)
 }
 
-#
-# Snippet 12
-#
-
 # Test our variance function for correctness.
 my_var(heights) - var(heights)
-
-#
-# Snippet 13
-#
 
 # Update the variance function to make it unbiased.
 my_var <- function(x) {
@@ -197,52 +168,28 @@ my_var <- function(x) {
 # Test our variance function again for correctness.
 my_var(heights) - var(heights)
 
-#
-# Snippet 14
-#
-
 # Check the range predicted by the variance function.
 c(mean(heights) - var(heights), mean(heights) + var(heights))
 #[1] 51.56409 81.17103
-
-#
-# Snippet 15
-#
 
 c(mean(heights) - var(heights), mean(heights) + var(heights))
 #[1] 51.56409 81.17103
 range(heights)
 #[1] 54.26313 78.99874
 
-#
-# Snippet 16
-#
-
 # Switch to standard deviations instead for thinking about ranges.
 my_sd <- function(x) {
-  return(sqrt(my_var(x)))
+  sqrt(my_var(x))
 }
-
-#
-# Snippet 17
-#
 
 # Test our standard deviation function for correctness.
 my_sd(heights) - sd(heights)
-
-#
-# Snippet 18
-#
 
 c(mean(heights) - sd(heights), mean(heights) + sd(heights))
 # [1] 62.52003 70.21509
 
 range(heights)
 #[1] 54.26313 78.99874
-
-#
-# Snippet 19
-#
 
 c(mean(heights) - sd(heights), mean(heights) + sd(heights))
 # [1] 62.52003 70.21509
@@ -251,69 +198,54 @@ c(quantile(heights, probs = 0.25), quantile(heights, probs = 0.75))
 #     25%      75%
 #63.50562 69.17426
 
-#
-# Snippet 20
-#
+
 
 # Start visualizing data using the ggplot2 package.
 library("ggplot2")
+
+# "Immediately, something should jump out at you: there’s a bell curve shape in
+# your data. Most of the entries are in the middle of your data, near the mean
+# and median height. But there’s a danger that this shape is an illusion caused
+# by the type of histogram we’re using. One way to check this is to try using
+# several other binwidths. This is something you should always keep in mind when
+# working with histograms: the binwidths you use impose _external_ structure on
+# your data at the same time that they reveal _internal_ structure in your
+# data." (p. 44).
 
 # Load the data from scratch for purity.
 heights_weights <- read.csv(data_file, header = TRUE, sep = ",")
 
 # Experiment with histograms.
-ggplot(heights_weights, aes(x = Height)) +
-  geom_histogram(binwidth = 1)
+base_plot <- ggplot(heights_weights) + aes(x = Height)
 
-#
-# Snippet 21
-#
+base_plot + geom_histogram(binwidth = 1)
+base_plot + geom_histogram(binwidth = 5)
+base_plot + geom_histogram(binwidth = 0.01)
 
-ggplot(heights_weights, aes(x = Height)) +
-  geom_histogram(binwidth = 5)
 
-#
-# Snippet 22
-#
-
-ggplot(heights_weights, aes(x = Height)) +
-  geom_histogram(binwidth = 0.01)
-
-#
-# Snippet 23
-#
 
 # Experiment with kernel density estimates.
-ggplot(heights_weights, aes(x = Height)) +
-  geom_density()
-
-#
-# Snippet 24
-#
+base_plot + geom_density()
 
 # Separate out heights and weights based on gender.
-ggplot(heights_weights, aes(x = Height, fill = Gender)) +
+ggplot(heights_weights) +
+  aes(x = Height, fill = Gender) +
   geom_density()
 
-#
-# Snippet 25
-#
-
-ggplot(heights_weights, aes(x = Weight, fill = Gender)) +
+ggplot(heights_weights) +
+  aes(x = Weight, fill = Gender) +
   geom_density()
 
-#
-# Snippet 26
-#
-
-# Produce two facets in a single plot to make it easier to see the hidden structure.
-ggplot(heights_weights, aes(x = Weight, fill = Gender)) +
+# Produce two facets in a single plot to make it easier to see the hidden
+# structure.
+ggplot(heights_weights) +
+  aes(x = Weight, fill = Gender) +
   geom_density() +
-  facet_grid(Gender ~ .)
+  facet_grid(Gender ~ .) +
+  guides(fill = FALSE)
 
-#
-# Snippet 27
-#
+
+
 
 # Experiment with random numbers from the normal distribution.
 m <- 0
@@ -321,9 +253,6 @@ s <- 1
 ggplot(data.frame(X = rnorm(100000, m, s)), aes(x = X)) +
   geom_density()
 
-#
-# Snippet 28
-#
 
 # Compare the normal distribution with the Cauchy distribution.
 set.seed(1)
@@ -332,44 +261,24 @@ cauchy_values <- rcauchy(250, 0, 1)
 range(normal_values)
 range(cauchy_values)
 
-#
-# Snippet 29
-#
-
 ggplot(data.frame(X = normal_values), aes(x = X)) +
   geom_density()
 ggplot(data.frame(X = cauchy_values), aes(x = X)) +
   geom_density()
-
-#
-# Snippet 30
-#
 
 # Experiment with random numbers from the gamma distribution.
 gamma_values <- rgamma(100000, 1, 0.001)
 ggplot(data.frame(X = gamma_values), aes(x = X)) +
   geom_density()
 
-#
-# Snippet 31
-#
-
 # Generate scatterplots of the heights and weights to see their relationship.
 ggplot(heights_weights, aes(x = Height, y = Weight)) +
   geom_point()
-
-#
-# Snippet 32
-#
 
 # Add a smooth shape that relates the two explicitly.
 ggplot(heights_weights, aes(x = Height, y = Weight)) +
   geom_point() +
   geom_smooth()
-
-#
-# Snippet 33
-#
 
 # See how the smooth shape gets better with more data.
 ggplot(heights_weights[1:20, ], aes(x = Height, y = Weight)) +
@@ -378,10 +287,6 @@ ggplot(heights_weights[1:20, ], aes(x = Height, y = Weight)) +
 
 last_plot() %+% heights_weights[1:200, ]
 last_plot() %+% heights_weights[1:2000, ]
-
-#
-# Snippet 34
-#
 
 # Visualize how gender depends on height and weight.
 ggplot(heights_weights, aes(x = Height, y = Weight)) +
@@ -393,10 +298,6 @@ ggplot(heights_weights, aes(x = Height, y = Weight)) +
 # An alternative using bright colors.
 ggplot(heights_weights, aes(x = Height, y = Weight, color = Gender)) +
   geom_point()
-
-#
-# Snippet 35
-#
 
 heights_weights <- transform(heights_weights,
                              Male = ifelse(Gender == "Male", 1, 0))
