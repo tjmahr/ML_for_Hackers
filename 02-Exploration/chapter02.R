@@ -15,6 +15,29 @@
 
 # All rights reserved.
 
+
+
+
+# "Because humans are vulnerable to discovering patterns that won’t stand up to
+# careful scrutiny, the exploratory step in data analysis can’t exist in
+# isolation; it needs to be accompanied by a confirmatory step. Think of
+# confirmatory data analysis as a sort of mental hygiene routine that we use to
+# clean off our beliefs about the world after we’ve gone slogging through the
+# messy—and sometimes lawless—world of exploratory data visualization."
+# (p.29)
+
+# "Confirmatory data analysis usually employs two tools:
+#
+# * Testing a formal model of the pattern that you think you’ve found on a new
+#   data set that you didn’t use to find the pattern.
+# * Using probability theory to test whether the patterns you’ve found in your
+#   original data set could reasonably have been produced by chance."
+# (p.30)
+
+
+
+
+
 #
 # Snippet 1
 #
