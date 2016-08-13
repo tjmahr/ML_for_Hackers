@@ -65,14 +65,16 @@ my_mean <- function(x) {
 }
 
 my_median <- function(x) {
+  halfway <- length(x) / 2
   sorted_x <- sort(x)
   if (length(x) %% 2 == 0) {
-    indices <- c(length(x) / 2, length(x) / 2 + 1)
-    return(mean(sorted_x[indices]))
+    indices <- c(halfway, halfway + 1)
+    median <- mean(sorted_x[indices])
   } else {
-    index <- ceiling(length(x) / 2)
-    return(sorted_x[index])
+    index <- ceiling(halfway)
+    median <- sorted_x[index]
   }
+  median
 }
 
 #
