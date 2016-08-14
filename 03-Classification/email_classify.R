@@ -67,23 +67,24 @@
 # described conditional probabilities. Taken together, these two traits make our
 # model a Naive Bayes classifier." (p. 78).
 
-
-
-
-# Load libraries
 library("tm")
 library("ggplot2")
 library("dplyr")
 library("tibble")
-# library("stringr")
+source("./03-Classification/email_helpers.R")
 
 # Set the global paths
-spam_path <- file.path("./", "03-Classification", "data", "spam")
-spam2_path <- file.path("./", "03-Classification", "data", "spam_2")
-easyham_path <- file.path("./", "03-Classification", "data", "easy_ham")
-easyham2_path <- file.path("./", "03-Classification", "data", "easy_ham_2")
-hardham_path <- file.path("./", "03-Classification", "data", "hard_ham")
-hardham2_path <- file.path("./", "03-Classification", "data", "hard_ham_2")
+data_path <- file.path("./", "03-Classification", "data")
+figure_path <- file.path("./", "03-Classification", "images/")
+
+spam_path <- file.path(data_path, "spam")
+spam2_path <- file.path(data_path, "spam_2")
+easyham_path <- file.path(data_path, "easy_ham")
+easyham2_path <- file.path(data_path, "easy_ham_2")
+hardham_path <- file.path(data_path, "hard_ham")
+hardham2_path <- file.path(data_path, "hard_ham_2")
+
+
 
 # Create motivating plot
 x <- runif(1000, 0, 40)
@@ -102,107 +103,14 @@ ex1 <- ggplot(val) +
   theme_bw() +
   xlab("X") +
   ylab("Y")
+ex1
 
 ggsave(
   plot = ex1,
   filename =  "00_Ex1.pdf",
-  path = file.path("./", "03-Classification", "images"),
+  path = figure_path,
   height = 10,
   width = 10)
-
-
-
-
-# Return a single element vector of just the email body. This is a very simple
-# approach, as we are only using words as features.
-get_msg <- function(path) {
-  text <- readLines(path, encoding = "latin1")
-
-  # The message always begins after the first full line break.
-  msg_start <- which(text == "")[1] + 1
-
-  # "The “null line” separating the header from the body of an email is part of
-  # the protocol definition. For reference, see RFC822:
-  # http://tools.ietf.org/html/frc822." (p. 80).
-
-  # Return an empty vector is no line break is found
-  if (!is.na(msg_start)) {
-    msg_lines <- text[seq(msg_start, length(text), 1)]
-    msg <- paste(msg_lines, collapse = "\n")
-  } else{
-    msg <- character(0)
-  }
-
-  msg
-}
-
-# Create a TermDocumentMatrix (TDM) from the corpus of SPAM email. The TDM
-# control can be modified, and the sparsity level can be altered. This TDM is
-# used to create the feature set used to do train our classifier.
-get_tdm <- function(doc_vec) {
-  control <- list(
-    removePunctuation = TRUE,
-    removeNumbers = TRUE,
-    stopwords = TRUE,
-    minDocFreq = 2)
-  doc_corpus <- tm::Corpus(tm::VectorSource(doc_vec))
-  tm::TermDocumentMatrix(doc_corpus, control)
-}
-
-# "One way of quantifying the frequency of terms in our spam email is to
-# construct a _term document matrix_ (TDM). As the name suggests, a TDM is an
-# N×M matrix in which the terms found among all of the documents in a given
-# corpus define the rows and all of the documents in the corpus define the
-# columns. The `[i, j]` cell of this matrix corresponds to the number of times
-# term `i` was found in document `j`." (p. 81).
-
-# These are the stopwords that are excluded.
-stopwords("en")
-
-
-# This function takes a file path to an email file and a string, the term
-# parameter, and returns the count of that term in the email body.
-count_word <- function(path, search_term) {
-  msg <- get_msg(path)
-  msg_corpus <- Corpus(VectorSource(msg))
-  # Hard-coded TDM control
-  control <- list(stopwords = TRUE,
-                  removePunctuation = TRUE,
-                  removeNumbers = TRUE)
-  msg_tdm <- TermDocumentMatrix(msg_corpus, control)
-  results <- msg_tdm %>%
-    convert_tdm_to_df %>%
-    filter(term == search_term)
-
-  word_freq <- ifelse(nrow(results) == 0, 0, results$frequency)
-  word_freq
-}
-
-## Given a term-document matrix, create a data frame that provides the feature
-## set from some training data.
-convert_tdm_to_training_df <- function(msg_tdm) {
-  term_df <- convert_tdm_to_df(msg_tdm)
-
-  # Proportion of documents containing each term.
-  term_occurrence <- rowMeans(msg_matrix > 0) %>% unname
-
-  # Add the term density and occurrence rate.
-  term_df %>%
-    mutate(density = frequency / sum(frequency),
-           occurrence = term_occurrence)
-}
-
-# Total counts of terms across all documents.
-convert_tdm_to_df <- function(msg_tdm) {
-  msg_matrix <- as.matrix(msg_tdm)
-
-  term_counts <- rowSums(msg_matrix)
-
-  term_df <- as_data_frame(term_counts) %>%
-    rename(frequency = value) %>%
-    rownames_to_column("term")
-  term_df
-}
 
 
 
@@ -222,7 +130,22 @@ spam_df <- convert_tdm_to_training_df(spam_tdm)
 spam_df %>% arrange(desc(occurrence))
 
 # html-centric terms
-spam_df %>% filter(term %in% c("body", "table", "font", "html", "head"))
+spam_df %>%
+  filter(term %in% c("body", "table", "font", "html", "head"))
+
+
+# Now do the same for the EASY HAM email
+easyham_docs <- easyham_path %>%
+  dir(full.names = TRUE) %>%
+  head(500)
+all_easyham <- easyham_docs %>%
+  lapply(get_msg) %>%
+  unlist
+
+easyham_tdm <- get_tdm(all_easyham)
+easyham_df <- convert_tdm_to_training_df(easyham_tdm)
+
+easyham_df %>% arrange(desc(occurrence))
 
 
 
@@ -267,13 +190,6 @@ classify_email <- function(path, training_df, prior = 0.5, c = 1e-4) {
     tidyr::replace_na(list(occurrence = c))
 
   prior * prod(msg_df$occurrence)
-
-  # # Now, we just perform the naive Bayes calculation
-  # if (length(msg_match) < 1) {
-  #   return(prior * c ^ (length(msg_freq)))
-  # } else {
-  #   return(prior * prod(match_probs) * c ^ (length(msg_freq) - length(msg_match)))
-  # }
 }
 
 # "You may note that there are actually 2,500 ham emails in this directory. So
@@ -282,18 +198,6 @@ classify_email <- function(path, training_df, prior = 0.5, c = 1e-4) {
 # ham or spam. As such, it is good practice to ensure that our training data
 # reflects our assumptions. We only have 500 spam messages, so we will limit or
 # ham training set to 500 messages as well." (p. 84.)
-
-# Now do the same for the EASY HAM email
-easyham_docs <- easyham_path %>%
-  dir(full.names = TRUE) %>%
-  head(500)
-all_easyham <- easyham_docs %>% lapply(get_msg) %>% unlist
-
-easyham_tdm <- get_tdm(all_easyham)
-easyham_df <- convert_tdm_to_training_df(easyham_tdm)
-
-easyham_df %>% arrange(desc(occurrence))
-
 
 
 # Run classifer against HARD HAM
@@ -308,57 +212,68 @@ hardham_hamtest <- hardham_docs %>%
   lapply(classify_email, training_df = easyham_df) %>%
   unlist
 
-hardham_res <- ifelse(hardham_spamtest > hardham_hamtest,
-                      TRUE,
-                      FALSE)
+hardham_res <- hardham_spamtest > hardham_hamtest
 summary(hardham_res)
 
 
 
 
+# Find counts of just terms 'html' and 'table' in all SPAM and EASYHAM docs, and
+# create figure.
+html_spam <- spam_docs %>% lapply(count_word, search_term = "html") %>% unlist
+table_spam <- spam_docs %>% lapply(count_word, search_term = "table") %>% unlist
 
-# Find counts of just terms 'html' and 'table' in all SPAM and EASYHAM docs, and create figure
-html_spam <- lapply(spam_docs, count_word, search_term = "html") %>% unlist
-table_spam <- lapply(spam_docs, count_word, search_term = "table") %>% unlist
-spam_init <- cbind(html_spam, table_spam, "SPAM")
+spam_init <- data_frame(
+  html = html_spam,
+  table = table_spam,
+  type = "SPAM")
 
-html_easyham <- lapply(easyham_docs, count_word, "html") %>% unlist
-table_easyham <- lapply(easyham_docs, count_word, "table") %>% unlist
-easyham_init <- cbind(html_easyham, table_easyham, "EASYHAM")
+html_easyham <- easyham_docs %>% lapply(count_word, "html") %>% unlist
+table_easyham <- easyham_docs %>% lapply(count_word, "table") %>% unlist
 
-init_df <- data.frame(rbind(spam_init, easyham_init),
-                      stringsAsFactors = FALSE)
-names(init_df) <- c("html", "table", "type")
-init_df$html <- as.numeric(init_df$html)
-init_df$table <- as.numeric(init_df$table)
-init_df$type <- as.factor(init_df$type)
+easyham_init <- data_frame(
+  html = html_easyham,
+  table = table_easyham,
+  type = "SPAM")
 
-init_plot1 <- ggplot(init_df, aes(x = html, y = table)) +
+init_df <- bind_rows(spam_init, easyham_init)
+
+init_plot1 <- ggplot(init_df) +
+  aes(x = html, y = table) +
   geom_point(aes(shape = type)) +
-  scale_shape_manual(values = c("SPAM" = 1, "EASYHAM" = 3), name = "Email Type") +
-  xlab("Frequency of 'html'") +
-  ylab("Freqeuncy of 'table'") +
+  scale_shape_manual(values = c("SPAM" = 1, "EASYHAM" = 3)) +
+  labs(x = "Frequency of 'html'",
+       y = "Freqeuncy of 'table'",
+       shape = "Email Type") +
   geom_abline(intercept = 0, slope = 1) +
   theme_bw()
 
-ggsave(plot = init_plot1,
-       filename = file.path("./", "03-Classification", "images", "01_init_plot1.pdf"),
-       width = 10,
-       height = 10)
+init_plot1
 
-init_plot2 <- ggplot(init_df, aes(x = html, y = table)) +
+ggsave(
+  plot = init_plot1,
+  file = "01_init_plot1.pdf",
+  path = figure_path,
+  width = 10,
+  height = 10)
+
+init_plot2 <- ggplot(init_df) +
+  aes(x = html, y = table) +
   geom_point(aes(shape = type), position = "jitter") +
-  scale_shape_manual(values = c("SPAM" = 1, "EASYHAM" = 3), name = "Email Type") +
-  xlab("Frequency of 'html'") +
-  ylab("Freqeuncy of 'table'") +
+  scale_shape_manual(values = c("SPAM" = 1, "EASYHAM" = 3)) +
+  labs(x = "Frequency of 'html'",
+       y = "Freqeuncy of 'table'",
+       shape = "Email Type") +
   geom_abline(intercept = 0, slope = 1) +
   theme_bw()
 init_plot2
 
-ggsave(plot = init_plot2,
-       filename = file.path("./", "03-Classification", "images", "02_init_plot2.pdf"),
-       width = 10,
-       height = 10)
+ggsave(
+  plot = init_plot2,
+  file = "02_init_plot2.pdf",
+  path = figure_path,
+  width = 10,
+  height = 10)
 
 # Finally, attempt to classify the HARDHAM data using the classifer developed above.
 # The rule is to classify a message as SPAM if Pr(email) = SPAM > Pr(email) = HAM
