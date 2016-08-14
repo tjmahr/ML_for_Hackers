@@ -201,7 +201,9 @@ c(quantile(heights, probs = 0.25), quantile(heights, probs = 0.75))
 
 
 # Start visualizing data using the ggplot2 package.
+library("dplyr")
 library("ggplot2")
+
 
 # "Immediately, something should jump out at you: there’s a bell curve shape in
 # your data. Most of the entries are in the middle of your data, near the mean
@@ -219,13 +221,22 @@ heights_weights <- read.csv(data_file, header = TRUE, sep = ",")
 base_plot <- ggplot(heights_weights) + aes(x = Height)
 
 base_plot + geom_histogram(binwidth = 1)
-base_plot + geom_histogram(binwidth = 5)
-base_plot + geom_histogram(binwidth = 0.01)
+base_plot + geom_histogram(binwidth = 5) + ggtitle("oversmoothing")
+base_plot + geom_histogram(binwidth = 0.01) + ggtitle("undersmoothing")
 
 
+
+# "Density plots for large data sets look a lot more like the theoretical shapes
+# we expect to find in our data. Additionally, density plots have some
+# theoretical superiority over histograms: in theory, using a density plot
+# should require fewer data points to reveal the underlying shape of your data
+# than a histogram." (p. 46).
 
 # Experiment with kernel density estimates.
 base_plot + geom_density()
+
+# The top of the curve is too flat to be normally distributed. But we know
+# what's wrong...
 
 # Separate out heights and weights based on gender.
 ggplot(heights_weights) +
@@ -236,6 +247,11 @@ ggplot(heights_weights) +
   aes(x = Weight, fill = Gender) +
   geom_density()
 
+# "In future chapters, we’ll cover this sort of mixture of bell curves in some
+# detail, but it’s worth giving a name to the structure we’re looking at right
+# now: it’s a mixture model in which two standard distributions have been mixed
+# to produce a nonstandard distribution." (p. 48).
+
 # Produce two facets in a single plot to make it easier to see the hidden
 # structure.
 ggplot(heights_weights) +
@@ -245,7 +261,10 @@ ggplot(heights_weights) +
   guides(fill = FALSE)
 
 
-
+# "As we said earlier, the mode of a continuous list of numbers isn’t well
+# defined, because no numbers repeat. But the mode has a clear visual
+# interpretation: when you make a density plot, the mode of the data is the peak
+# of the bell." (p. 52).
 
 # Experiment with random numbers from the normal distribution.
 m <- 0
@@ -253,6 +272,20 @@ s <- 1
 ggplot(data.frame(X = rnorm(100000, m, s)), aes(x = X)) +
   geom_density()
 
+# "The normal distribution has a single mode, which is also the mean and the
+# median." (p. 52).
+
+# We characterize distributions by number of modes, whether it is symmetric or
+# skewed or how thick the tails of the distributions are.
+
+# "The normal distribution, for example, produces values that are no more than
+# three standard deviations away from the mean about 99% of the time. In
+# contrast, another bell-shaped distribution called the Cauchy distribution
+# produces only 90% of its values inside those three standard deviation bounds.
+# And, as you get further away from the mean value, the two types of
+# distributions become even more different: a normal distribution almost never
+# produces values that are six standard deviations away from the mean, whereas a
+# Cauchy will do it almost 5% of the time." (p.54--55).
 
 # Compare the normal distribution with the Cauchy distribution.
 set.seed(1)
@@ -261,18 +294,78 @@ cauchy_values <- rcauchy(250, 0, 1)
 range(normal_values)
 range(cauchy_values)
 
-ggplot(data.frame(X = normal_values), aes(x = X)) +
-  geom_density()
-ggplot(data.frame(X = cauchy_values), aes(x = X)) +
-  geom_density()
+plot_dist <- function(xs) {
+  ggplot(data_frame(X = xs)) +
+    aes(x = X) +
+    geom_density() +
+    ggtitle(lazyeval::expr_text(xs))
+}
+
+plot_dist(normal_values)
+plot_dist(cauchy_values)
+
+
+# Create canonical cauchy-vs-normal plot
+normals <- data_frame(X = rnorm(250000, 0, 1), type = "Normal")
+cauchys <- data_frame(X = rcauchy(250000, 0, 1), type = "Cauchy")
+both_types <- dplyr::bind_rows(normals, cauchys)
+
+ggplot(both_types) +
+  aes(x = X, linetype = type) +
+  geom_density() +
+  xlim(-3, 3)
+
+# Use the example from the help page ?rstanarm::priors
+compare_priors <- function(scale = 1, df_t = 2, xlim = c(-10, 10)) {
+  dt_loc_scale <- function(x, df, location, scale) {
+    # t distribution with location & scale parameters
+    1 / scale * dt((x - location) / scale, df)
+  }
+  ggplot(data.frame(x = xlim), aes(x)) +
+    stat_function(fun = dnorm, args = list(mean = 0, sd = scale),
+                  color = "purple", size = .75) +
+    stat_function(fun = dt_loc_scale,
+                  args = list(df = df_t, location = 0, scale = scale),
+                  color = "orange", size = .75) +
+    stat_function(fun = dcauchy, args = list(location = 0, scale = scale),
+                  color = "skyblue", size = .75, linetype = 2) +
+    ggtitle("normal (purple) vs student_t (orange) vs cauchy (blue)")
+}
+# Cauchy has fattest tails, then student_t, then normal
+compare_priors()
+
+# "Let’s summarize the qualitative properties of the normal once more: it’s
+# unimodal, it’s symmetric, and it has a bell shape with thin tails. The Cauchy
+# is unimodal and symmetric, and it has a bell shape with heavy tails. After the
+# normal distribution, there are two more canonical images we want to show you
+# before we bring this section on density plots to a close: a mildly skewed
+# distribution called the _gamma_ and a very skewed distribution called the
+# _exponential_." (p. 56-57).
 
 # Experiment with random numbers from the gamma distribution.
-gamma_values <- rgamma(100000, 1, 0.001)
-ggplot(data.frame(X = gamma_values), aes(x = X)) +
-  geom_density()
+plot_dist(rgamma(n = 100000, shape = 5, rate = .5))
+plot_dist(rgamma(n = 100000, shape = 1, rate = 0.001))
+
+# They show an example of high scores in a videogame as a gamma like
+# distribution.
+
+# "Because the mode of the exponential distribution occurs at zero, it’s almost
+# like you had cut off the positive half of a bell to produce the exponential
+# curve. This distribution comes up quite a lot when the most frequent value in
+# your data set is zero and only positive values can ever occur. For example,
+# corporate call centers often find that the length of time between the calls
+# they receive looks like an exponential distribution." (p. 59--60).
+
+plot_dist(rexp(100000, rate = .001))
+plot_dist(rexp(100000, rate = .1))
+
+
+
+
 
 # Generate scatterplots of the heights and weights to see their relationship.
-ggplot(heights_weights, aes(x = Height, y = Weight)) +
+ggplot(heights_weights) +
+  aes(x = Height, y = Weight) +
   geom_point()
 
 # Add a smooth shape that relates the two explicitly.
@@ -289,27 +382,37 @@ last_plot() %+% heights_weights[1:200, ]
 last_plot() %+% heights_weights[1:2000, ]
 
 # Visualize how gender depends on height and weight.
-ggplot(heights_weights, aes(x = Height, y = Weight)) +
+ggplot(heights_weights) +
+  aes(x = Height, y = Weight) +
   geom_point(aes(color = Gender, alpha = 0.25)) +
-  scale_alpha(guide = "none") +
+  scale_alpha(guide = FALSE) +
   scale_color_manual(values = c("Male" = "black", "Female" = "gray")) +
   theme_bw()
 
 # An alternative using bright colors.
-ggplot(heights_weights, aes(x = Height, y = Weight, color = Gender)) +
+ggplot(heights_weights) +
+  aes(x = Height, y = Weight, color = Gender) +
   geom_point()
 
-heights_weights <- transform(heights_weights,
-                             Male = ifelse(Gender == "Male", 1, 0))
 
-logit_model <- glm(Male ~ Weight + Height,
-                   data = heights_weights,
-                   family = binomial(link = "logit"))
 
-ggplot(heights_weights, aes(x = Height, y = Weight)) +
-  geom_point(aes(color = Gender, alpha = 0.25)) +
-  scale_alpha(guide = "none") +
+
+# Separating hyperplane
+heights_weights <- heights_weights %>%
+  mutate(Male = Gender == "Male")
+
+logit_model <- glm(
+  Male ~ Weight + Height,
+  data = heights_weights,
+  family = binomial(link = "logit"))
+
+summary(logit_model)
+
+ggplot(heights_weights) +
+  aes(x = Height, y = Weight) +
+  geom_point(aes(color = Gender), alpha = 0.25) +
   scale_color_manual(values = c("Male" = "black", "Female" = "gray")) +
+  scale_alpha(guide = FALSE) +
   theme_bw() +
   geom_abline(intercept = -coef(logit_model)[1] / coef(logit_model)[2],
               slope = -coef(logit_model)[3] / coef(logit_model)[2],
