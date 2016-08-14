@@ -103,26 +103,38 @@ ex1 <- ggplot(val) +
   xlab("X") +
   ylab("Y")
 
-ggsave(plot = ex1,
-       filename = file.path("./", "03-Classification", "images", "00_Ex1.pdf"),
-       height = 10,
-       width = 10)
+ggsave(
+  plot = ex1,
+  filename =  "00_Ex1.pdf",
+  path = file.path("./", "03-Classification", "images"),
+  height = 10,
+  width = 10)
 
-# Return a single element vector of just the email body
-# This is a very simple approach, as we are only using
-# words as features
+
+
+
+# Return a single element vector of just the email body. This is a very simple
+# approach, as we are only using words as features.
 get_msg <- function(path) {
   text <- readLines(path, encoding = "latin1")
-  # text <- readLines(con)
+
   # The message always begins after the first full line break
-  msg <- text[seq(which(text == "")[1] + 1, length(text), 1)]
-  paste(msg, collapse = "\n")
+  msg_start <- which(text == "")[1] + 1
+
+  # Return an empty vector is no line break is found
+  if (!is.na(msg_start)) {
+    msg_lines <- text[seq(msg_start, length(text), 1)]
+    msg <- paste(msg_lines, collapse = "\n")
+  } else{
+    msg <- character(0)
+  }
+
+  msg
 }
 
-# Create a TermDocumentMatrix (TDM) from the corpus of SPAM email.
-# The TDM control can be modified, and the sparsity level can be
-# altered. This TDM is used to create the feature set used to do
-# train our classifier.
+# Create a TermDocumentMatrix (TDM) from the corpus of SPAM email. The TDM
+# control can be modified, and the sparsity level can be altered. This TDM is
+# used to create the feature set used to do train our classifier.
 get_tdm <- function(doc_vec) {
   control <- list(
     stopwords = TRUE,
@@ -134,9 +146,8 @@ get_tdm <- function(doc_vec) {
   doc_dtm
 }
 
-# This function takes a file path to an email file and a string,
-# the term parameter, and returns the count of that term in
-# the email body.
+# This function takes a file path to an email file and a string, the term
+# parameter, and returns the count of that term in the email body.
 count_word <- function(path, term) {
   msg <- get_msg(path)
   msg.corpus <- Corpus(VectorSource(msg))
@@ -150,6 +161,40 @@ count_word <- function(path, term) {
   # We use ifelse here because term.freq = NA if nothing is found
   return(ifelse(length(term.freq) > 0, term.freq, 0))
 }
+
+
+# With all of our support functions written, we can perform the classification.
+# First, we create document corpus for spam messages
+
+# Get all the SPAM-y email into a single vector
+spam_docs <- dir(spam_path, full.names = TRUE)
+all_spam <- spam_docs %>% lapply(get_msg) %>% unlist
+
+# Create a DocumentTermMatrix from that vector
+spam_tdm <- get_tdm(all_spam)
+
+# Create a data frame that provides the feature set from the training SPAM data
+spam_matrix <- as.matrix(spam_tdm)
+spam_counts <- rowSums(spam_matrix)
+spam_df <- as_data_frame(spam_counts) %>%
+  rename(frequency = value) %>%
+  rownames_to_column("term")
+spam_df
+
+
+
+spam_occurrence <- sapply(1:nrow(spam_matrix), function(i) {
+  length(which(spam_matrix[i, ] > 0)) / ncol(spam_matrix)})
+spam_density <- spam_df$frequency / sum(spam_df$frequency)
+
+# Add the term density and occurrence rate
+spam_df <- spam_df %>%
+  mutate(density = spam_density, occurrence = spam_occurrence)
+
+spam_df %>% arrange(desc(occurrence))
+
+
+
 
 # This is the our workhorse function for classifying email.  It takes
 # two required paramters: a file path to an email to classify, and
@@ -168,7 +213,7 @@ classify_email <- function(path, training.df, prior = 0.5, c = 1e-6) {
   # Find intersections of words
   msg.match <- intersect(names(msg.freq), training.df$term)
   # Now, we just perform the naive Bayes calculation
-  if(length(msg.match) < 1) {
+  if (length(msg.match) < 1) {
     return(prior * c ^ (length(msg.freq)))
   } else {
     match.probs <- training.df$occurrence[match(msg.match, training.df$term)]
@@ -177,36 +222,8 @@ classify_email <- function(path, training.df, prior = 0.5, c = 1e-6) {
 }
 
 
-# With all of our support functions written, we can perform the classification.
-# First, we create document corpus for spam messages
 
-# Get all the SPAM-y email into a single vector
-spam_docs <- dir(spam_path, full.names = TRUE)
-spam_docs <- spam_docs[which(basename(spam_docs) != "cmds")]
-all_spam <- sapply(spam_docs, function(p) get_msg(p))
 
-# Create a DocumentTermMatrix from that vector
-spam_tdm <- get_tdm(all_spam)
-
-# Create a data frame that provides the feature set from the training SPAM data
-spam_matrix <- as.matrix(spam_tdm)
-spam_counts <- rowSums(spam_matrix)
-spam_df <- data.frame(cbind(names(spam_counts),
-                            as.numeric(spam_counts)),
-                      stringsAsFactors = FALSE)
-names(spam_df) <- c("term", "frequency")
-spam_df$frequency <- as.numeric(spam_df$frequency)
-spam_occurrence <- sapply(1:nrow(spam_matrix),
-                          function(i)
-                          {
-                            length(which(spam_matrix[i, ] > 0)) / ncol(spam_matrix)
-                          })
-spam_density <- spam_df$frequency / sum(spam_df$frequency)
-
-# Add the term density and occurrence rate
-spam_df <- transform(spam_df,
-                     density = spam_density,
-                     occurrence = spam_occurrence)
 
 # Now do the same for the EASY HAM email
 easyham_docs <- dir(easyham_path)
