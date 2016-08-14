@@ -17,9 +17,65 @@
 # All rights reserved.
 
 
-# Load librariesf
+
+# What we're doing, briefly:
+
+# "At its core, text classification is a 20th-century application of the
+# 18th-century concept of _conditional probability_. A conditional probability
+# is the likelihood of observing one thing given some other thing that we
+# already know about." (p. 77).
+
+# "The text classification algorithm we’re going to use in this chapter, called
+# the Naive Bayes classifier, looks for differences of this sort by searching
+# through text for words that are either (a) noticeably more likely to occur in
+# spam messages, or (b) noticeably more likely to occur in ham messages. When a
+# word is noticeably more likely to occur in one context rather than the other,
+# its occurrence can be diagnostic of whether a new message is spam or ham. The
+# logic is simple: if you see a single word that’s more likely to occur in spam
+# than ham, that’s evidence that the email as a whole is spam. If you see many
+# words that are more likely to occur in spam than ham and very few words that
+# are more likely to occur in ham than spam, that should be strong evidence that
+# the email as a whole is spam." (p. 77).
+
+# "Ultimately, our text classifier formalizes this intuition by computing (a)
+# the probability of seeing the exact contents of an email conditioned on the
+# email being assumed to be spam, and (b) the probability of seeing the same
+# email’s contents conditioned on the email being assumed to be ham. If it’s
+# much more likely that we would see the email in question if it were spam,
+# we’ll declare it to be spam." (p. 77).
+
+
+# Priors as base rate:
+
+# "How much more likely a message needs to be to merit being labeled spam
+# depends upon an additional piece of information: the base rate of seeing spam
+# messages. This base rate information is usually called the _prior_. [...] When
+# working with email, the prior comes into play because the majority of email
+# sent is spam, which means that even weak evidence that an email is spam can be
+# sufficient to justify labeling it as spam." (p. 77--78).
+
+
+# Why the name Naive Bayes?
+
+# "To compute the probability of an email, we will assume that the occurrence
+# counts for every word can be estimated in isolation from all of the other
+# words. Formally, this amounts to an assumption often referred to as
+# statistical independence. When we make this assumption without being certain
+# that it’s correct, we say that our model is naive. Because we will also make
+# use of base rate information about emails being spam, the model will be also
+# called a Bayes model—in homage to the 18thcentury mathematician who first
+# described conditional probabilities. Taken together, these two traits make our
+# model a Naive Bayes classifier." (p. 78).
+
+
+
+
+# Load libraries
 library("tm")
 library("ggplot2")
+library("dplyr")
+library("tibble")
+# library("stringr")
 
 # Set the global paths
 spam_path <- file.path("./", "03-Classification", "data", "spam")
