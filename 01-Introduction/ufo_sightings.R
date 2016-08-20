@@ -68,6 +68,8 @@ ufo <- readr::read_tsv(
 # Inspect the data frame
 ufo
 
+ufo <- ufo %>% select(-ShortDescription, -Duration, -LongDescription)
+
 # To work with the dates, we will need to convert the YYYYMMDD string to an R Date
 # type using the 'strptime' function
 
@@ -96,15 +98,23 @@ ufo$DateReported <- as.Date(ufo$DateReported, format = "%Y%m%d")
 
 # We write a function to take location string and return a data-frame with a
 # USCity column and a USState column. We do this by breaking a location string
-# at the cpmma "Iowa City, IA" becomes c("Iowa City", " IA"). Entries with too
-# many commas or with no known US state in the second position are set to NA.
+# at the cpmma "Iowa City, IA" becomes c("Iowa City", " IA").
 
 get_us_location <- function(location) {
   # Break strings at commas.
   pieces <- location %>% str_split(",") %>% unlist
 
-  if (length(pieces) != 2) {
+  # No comma case gets NAs
+  if (length(pieces) == 1) {
     pieces <- c(NA_character_, NA_character_)
+  }
+
+  # Assume piece after final comma will contain the state. Collapse everything
+  # but last item into a single string.
+  if (2 < length(pieces)) {
+    but_last <- pieces %>% head(-1) %>% paste0(collapse = ",")
+    last <- tail(pieces, 1)
+    pieces <- c(but_last, last)
   }
 
   # Trim whitespace.
@@ -122,23 +132,17 @@ is_us_state <- function(x) {
   x %in% datasets::state.abb
 }
 
-# We use 'lapply' to return a list of dataframes with columns USCity and
-# USState. There is one data-frame for each location.
-city_state <- lapply(ufo$Location, get_us_location)
-city_state <- bind_rows(city_state)
-
+library("purrr")
+city_state <- ufo$Location %>% map_df(get_us_location)
 city_state %>% sample_n(100)
 
-# The code will miss examples like:
+# "DC" is not in our list of states, so this location will not be counted
 #
-# - Mt. Pleasant/Texarkana (Between,  on I30), TX
-# - Perry (rural highway, S.R.22), OH
-# - Malibu, West, CA
 # - Washington, D.C., DC
-# - Las Vegas, Nevada, Airspace, NV
-#
-# We might do a little better by splitting into two at the last comma in a
-# string
+
+
+
+
 
 # Add the city and state data to ufo data-frame.
 ufo <- bind_cols(ufo, city_state)
@@ -183,6 +187,7 @@ new_hist <- ggplot(ufo_us) +
   aes(x = DateOccurred) +
   geom_histogram(fill = 'white', color = 'red', binwidth = 365, center = 0) +
   scale_x_date(date_breaks = "2 years", date_labels = "%Y")
+new_hist
 
 ggsave(
   filename = "new_hist.pdf",
@@ -295,31 +300,54 @@ ggsave(
 
 
 # Bonus. Create a map of sightings.
+
+# Updated projection using tricks from here
+# http://juliasilge.com/blog/Evenly-Distributed/
 library("maps")
 library("mapproj")
+library(ggalt)
+library("albersusa")
+library(ggplot2)
+# library(ggthemes)
+library(ggalt)
+library(scales)
+library(rgeos)
+library(maptools)
+library(albersusa)
 
-by_state <- all_sightings %>%
+us <- usa_composite()
+us_map <- fortify(us, region = "name") %>% as.tbl
+us_map
+
+by_state <-  all_sightings %>%
   group_by(State) %>%
-  summarise(Sightings = sum(Sightings), Sightings_Norm = sum(Sightings_Norm)) %>%
+  summarise(Sightings = sum(Sightings),
+            Sightings_Norm = sum(Sightings_Norm)) %>%
+  mutate(Sightings_Norm = Sightings_Norm * 10000) %>%
   left_join(states) %>%
-  mutate(region = tolower(StateName))
+  # mutate(region = tolower(StateName)) %>%
+  rename(id = StateName)
 
-map_states <- map_data("state") %>%
+map_states <- us_map %>%
   left_join(by_state)
 
 ufo_map <- ggplot(map_states) +
   aes(long, lat, group = group) +
   geom_polygon(aes(fill = Sightings_Norm), colour = "black") +
-  coord_map() +
+  coord_proj(us_laea_proj) +
   viridis::scale_fill_viridis(labels = scales::comma) +
   scale_x_continuous(breaks = NULL) +
   scale_y_continuous(breaks = NULL) +
-  labs(x = NULL, y = NULL, fill = "") +
-  theme_bw() +
-  theme(legend.position = c(.00, .00), legend.justification	= c(0, 0),
+  theme(plot.title = element_text(size = 16, margin = margin(b = 10))) +
+  theme(plot.subtitle = element_text(size = 14, margin = margin(b = -20))) +
+  theme(plot.caption = element_text(size = 9, margin = margin(t = -15))) +
+  ggthemes::theme_map(base_size = 12) +
+  theme(legend.position = c(.8, .25), legend.justification	= c(0, 0),
         legend.background = element_rect(fill = NA)) +
   ggtitle("UFO sightings by U.S. State (1990-2010)",
-          subtitle = "Per Capita Number of Sightings (Based on 2000 Census)")
+          subtitle = "Sightings per 10,000 residents. Populations based on 2000 Census.") +
+  labs(fill = NULL, caption = "Example from 'Machine Learning for Hackers'.")
+ufo_map
 
 ggsave(
   file = "ufo_map.pdf",
