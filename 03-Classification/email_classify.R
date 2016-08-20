@@ -301,7 +301,15 @@ hardham2_final <- hardham2_class %>% mutate(type = "HARDHAM")
 spam2_final <- spam2_class %>% mutate(type = "SPAM")
 
 class_df <- bind_rows(easyham2_final, hardham2_final, spam2_final)
+class_df %>%
+  mutate(correct_type = ifelse(type == "SPAM", "Spam", "Ham"),
+         correct = label == correct_type) %>%
+  group_by(type, correct_type) %>%
+  summarise(mean(correct))
 
+class_df %>%
+  group_by(type, label) %>%
+  count
 
 # Create final plot of results
 class_plot <- ggplot(class_df) +
@@ -318,10 +326,20 @@ class_plot <- ggplot(class_df) +
 class_plot
 
 
-ggsave(plot = class.plot,
-       filename = file.path("./", "03-Classification", "images", "03_final_classification.pdf"),
-       height = 10,
-       width = 10)
+# "There appear to be two general ways it is failing. First, there are many hard
+# ham messages that have a positive probability of being spam but a near-zero
+# probability of being ham. These are the points pressed up against the y-axis.
+# Second, there are both easy and hard ham messages that have a much higher
+# relative probability of being ham. Both of these observations may indicate a
+# weak training data set for ham emails, as there are clearly many more terms
+# that should be associated with ham that currently are not." (p. 90).
+
+ggsave(
+  plot = class_plot,
+  file = "03_final_classification.pdf",
+  path = figure_path,
+  height = 10,
+  width = 10)
 
 get_results <- function(bool_vector) {
   results <- c(length(bool_vector[which(bool_vector == FALSE)]) / length(bool_vector),
